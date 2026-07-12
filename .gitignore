@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+
+# Secrets — never commit
+.env
+
+# Generated snapshots (runtime output); the reference bank in docs/bank IS committed
+docs/snapshots/**/*.jpg
+docs/snapshots/*.jpg
+!docs/snapshots/.gitkeep
+
+# AI-generated bank at repo root (if you regenerate there); docs/bank stays tracked
+/bank/

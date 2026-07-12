@@ -1,0 +1,38 @@
+[project]
+name = "sentinel-node"
+version = "0.1.0"
+description = "Multi-sensor edge sentinel — air quality, mmWave presence, edge audio ML and vision events. Hexagonal, sim-first, hardware-ready."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Zoel Manchón" }]
+dependencies = []
+
+[project.optional-dependencies]
+mqtt = ["paho-mqtt>=2.0"]
+vision = ["pillow>=10.0"]
+ai = ["openai>=1.0"]
+dev = ["pytest>=8.0", "ruff>=0.4", "pillow>=10.0"]
+
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["node*", "runner*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B"]
+ignore = ["UP031"]
+
+[tool.ruff.lint.per-file-ignores]
+"node/domain/*" = ["UP"]
+"node/application/*" = ["UP"]
