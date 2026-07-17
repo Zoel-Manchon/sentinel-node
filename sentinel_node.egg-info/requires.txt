@@ -1,0 +1,14 @@
+
+[ai]
+openai>=1.0
+
+[dev]
+pytest>=8.0
+ruff>=0.4
+pillow>=10.0
+
+[mqtt]
+paho-mqtt>=2.0
+
+[vision]
+pillow>=10.0
