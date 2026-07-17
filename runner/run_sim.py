@@ -11,9 +11,13 @@ sensor by sensor — the ones you don't have yet stay simulated.
 """
 
 import argparse
+import os
 import sys
 
 from node.adapters.codec.json_codec import JsonCodec
+from node.adapters.security.hmac_signer import HmacSigner
+from node.adapters.security.keyring import derive_key
+from node.adapters.security.signed_codec import SignedCodec
 from node.adapters.sim.clock import SimClock, SystemClock
 from node.adapters.sim.environment import SpaceWorld
 from node.adapters.sim.sensors import (
@@ -75,7 +79,12 @@ def build_scheduler(args):
 
     collector = CollectTelemetry(args.device_id, sensors, clock,
                                  detectors=detectors, power=power)
-    publisher = PublishTelemetry(collector, JsonCodec(), transport)
+    codec = JsonCodec()
+    if args.sign:
+        master = os.environ.get("SENTINEL_MASTER_SECRET", "change-me").encode("utf-8")
+        signer = HmacSigner(derive_key(master, args.device_id), key_id=args.device_id)
+        codec = SignedCodec(codec, signer=signer)  # payload integrity (HMAC)
+    publisher = PublishTelemetry(collector, codec, transport)
 
     if args.anomaly_at is not None:
         publisher = _AnomalyCue(
@@ -91,6 +100,8 @@ def build_scheduler(args):
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="run_sim", description="Simulated sentinel node")
     p.add_argument("--device-id", default="sentinel-01")
+    p.add_argument("--sign", action="store_true",
+                   help="HMAC-sign each frame (payload integrity; key_id = device-id)")
     p.add_argument("--interval", type=int, default=60,
                    help="seconds between frames (virtual if --speed > 1)")
     p.add_argument("--speed", type=float, default=1.0,
