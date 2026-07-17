@@ -1,28 +1,22 @@
 name: sentinel-stack
-
 services:
   mosquitto:
     image: eclipse-mosquitto:2
-    ports:
-      - "1883:1883"
+    ports: ["8883:8883"]
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/certs:/mosquitto/certs:ro
       - mosquitto-data:/mosquitto/data
     restart: unless-stopped
-
   nodered:
     image: nodered/node-red:latest
-    ports:
-      - "1880:1880"
-    volumes:
-      - nodered-data:/data
+    ports: ["1880:1880"]
+    volumes: [nodered-data:/data]
     depends_on: [mosquitto, influxdb]
     restart: unless-stopped
-
   influxdb:
     image: influxdb:2.7
-    ports:
-      - "8086:8086"
+    expose: ["8086"]
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: sentinel
@@ -30,24 +24,23 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: sentinel
       DOCKER_INFLUXDB_INIT_BUCKET: sentinel
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: sentinel-local-dev-token
-    volumes:
-      - influxdb-data:/var/lib/influxdb2
+    volumes: [influxdb-data:/var/lib/influxdb2]
     restart: unless-stopped
-
   grafana:
     image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
+    expose: ["3000"]
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-    volumes:
-      - grafana-data:/var/lib/grafana
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}
+      GF_SERVER_ROOT_URL: https://localhost:3443
+    volumes: [grafana-data:/var/lib/grafana]
     depends_on: [influxdb]
     restart: unless-stopped
-
-volumes:
-  mosquitto-data:
-  nodered-data:
-  influxdb-data:
-  grafana-data:
+  caddy:
+    image: caddy:2
+    ports: ["3443:3443", "8443:8443"]
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on: [grafana, influxdb]
+    restart: unless-stopped
+volumes: { mosquitto-data: , nodered-data: , influxdb-data: , grafana-data: , caddy-data: }

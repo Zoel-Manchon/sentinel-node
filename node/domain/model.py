@@ -75,6 +75,11 @@ class Event:
         self.label = label
         self.confidence = float(confidence)
         self.meta = dict(meta) if meta else {}
+        for _k, _v in self.meta.items():
+            if isinstance(_v, (bytes, bytearray)):
+                raise ValueError(
+                    "Event meta must not carry binary payloads (%s); "
+                    "raw media never enters the frame" % _k)
 
     def __repr__(self):
         return "Event(%s: %s @%.2f)" % (self.channel, self.label, self.confidence)

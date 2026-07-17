@@ -1,0 +1,5 @@
+{ auto_https disable_redirects }
+localhost:3443 { tls internal
+  reverse_proxy grafana:3000 }
+localhost:8443 { tls internal
+  reverse_proxy influxdb:8086 }
