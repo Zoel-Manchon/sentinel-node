@@ -1,8 +1,17 @@
 name: sentinel-stack
+
+# Network segmentation (zones):
+#   iot      → field-facing; ONLY the broker lives here
+#   trusted  → data + dashboards; never reachable from the IoT segment
+networks:
+  iot:
+  trusted:
+
 services:
   mosquitto:
     image: eclipse-mosquitto:2
     ports: ["8883:8883"]
+    networks: [iot, trusted]        # the boundary/conduit — on both zones
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/certs:/mosquitto/certs:ro
@@ -11,12 +20,14 @@ services:
   nodered:
     image: nodered/node-red:latest
     ports: ["1880:1880"]
+    networks: [trusted]
     volumes: [nodered-data:/data]
     depends_on: [mosquitto, influxdb]
     restart: unless-stopped
   influxdb:
     image: influxdb:2.7
     expose: ["8086"]
+    networks: [trusted]             # no route from the iot segment
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: sentinel
@@ -29,6 +40,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     expose: ["3000"]
+    networks: [trusted]
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}
       GF_SERVER_ROOT_URL: https://localhost:3443
@@ -38,9 +50,11 @@ services:
   caddy:
     image: caddy:2
     ports: ["3443:3443", "8443:8443"]
+    networks: [trusted]
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
     depends_on: [grafana, influxdb]
     restart: unless-stopped
+
 volumes: { mosquitto-data: , nodered-data: , influxdb-data: , grafana-data: , caddy-data: }

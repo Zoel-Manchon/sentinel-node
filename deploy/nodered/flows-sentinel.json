@@ -1,183 +1,220 @@
 [
-  {
-    "id": "sentinel-tab",
-    "type": "tab",
-    "label": "Sentinel \u00b7 MQTT \u2192 InfluxDB",
-    "info": "Requires palette: node-red-contrib-influxdb. Splits scalar readings and discrete events into two InfluxDB measurements."
-  },
-  {
-    "id": "sn-mqtt-in",
-    "type": "mqtt in",
-    "z": "sentinel-tab",
-    "name": "iot/+/state",
-    "topic": "iot/+/state",
-    "qos": "1",
-    "datatype": "json",
-    "broker": "sn-broker",
-    "x": 130,
-    "y": 160,
-    "wires": [
-      [
-        "sn-split"
-      ]
-    ]
-  },
-  {
-    "id": "sn-split",
-    "type": "function",
-    "z": "sentinel-tab",
-    "name": "frame \u2192 readings + events",
-    "func": "const f = msg.payload;\nconst out_readings = null;\n\n// 1) scalar readings -> measurement 'telemetry'\nconst fields = {};\nfor (const [name, r] of Object.entries(f.readings || {})) {\n  fields[name] = r.v;\n}\nfields.seq = f.seq;\nconst readingsMsg = {\n  payload: [fields, { device_id: f.device_id }],\n  measurement: 'telemetry'\n};\n\n// 2) discrete events -> measurement 'events' (one point per event)\n// confidence as field; label + channel as tags; count/level as fields if present.\nconst eventMsgs = [];\nconst shots = flow.get('shots') || [];\nfor (const e of (f.events || [])) {\n  if (e.ch === 'vision' && e.label === 'person' && e.meta && e.meta.snapshot) {\n    shots.push({ file: e.meta.snapshot.split('/').pop(), count: e.meta.count||0,\n                 label: e.label, ts: new Date(f.ts*1000).toLocaleTimeString() });\n    if (shots.length > 200) shots.shift();\n    flow.set('shots', shots);\n  }\n  const efields = { confidence: e.conf };\n  if (e.meta && typeof e.meta.count === 'number') efields.count = e.meta.count;\n  if (e.meta && typeof e.meta.level_dbfs === 'number') efields.level_dbfs = e.meta.level_dbfs;\n  eventMsgs.push({\n    payload: [efields, { device_id: f.device_id, channel: e.ch, label: e.label }],\n    measurement: 'events'\n  });\n}\n\nreturn [readingsMsg, eventMsgs];",
-    "outputs": 2,
-    "x": 380,
-    "y": 160,
-    "wires": [
-      [
-        "sn-influx-readings"
-      ],
-      [
-        "sn-influx-events"
-      ]
-    ]
-  },
-  {
-    "id": "sn-influx-readings",
-    "type": "influxdb out",
-    "z": "sentinel-tab",
-    "influxdb": "sn-influxdb",
-    "name": "readings",
-    "measurement": "telemetry",
-    "precision": "",
-    "retentionPolicy": "",
-    "org": "sentinel",
-    "bucket": "sentinel",
-    "x": 660,
-    "y": 120,
-    "wires": []
-  },
-  {
-    "id": "sn-influx-events",
-    "type": "influxdb out",
-    "z": "sentinel-tab",
-    "influxdb": "sn-influxdb",
-    "name": "events",
-    "measurement": "events",
-    "precision": "",
-    "retentionPolicy": "",
-    "org": "sentinel",
-    "bucket": "sentinel",
-    "x": 656,
-    "y": 200,
-    "wires": []
-  },
-  {
-    "id": "sn-broker",
-    "type": "mqtt-broker",
-    "name": "mosquitto",
-    "broker": "localhost",
-    "port": "1883",
-    "clientid": "nodered-sentinel",
-    "autoConnect": true,
-    "protocolVersion": "5",
-    "keepalive": "60",
-    "cleansession": true
-  },
-  {
-    "id": "sn-influxdb",
-    "type": "influxdb",
-    "hostname": "localhost",
-    "port": "8086",
-    "protocol": "http",
-    "name": "influxdb2",
-    "usetls": false,
-    "influxdbVersion": "2.0",
-    "url": "http://localhost:8086",
-    "rejectUnauthorized": false
-  },
-  {
-    "id": "sn-http-gallery",
-    "type": "http in",
-    "z": "sentinel-tab",
-    "name": "GET /gallery",
-    "url": "/gallery",
-    "method": "get",
-    "upload": false,
-    "swaggerDoc": "",
-    "x": 130,
-    "y": 320,
-    "wires": [
-      [
-        "sn-gallery-fn"
-      ]
-    ]
-  },
-  {
-    "id": "sn-gallery-fn",
-    "type": "function",
-    "z": "sentinel-tab",
-    "name": "render gallery",
-    "func": "// Reads recent vision events from flow context (populated by the split fn)\nconst shots = flow.get('shots') || [];\nconst cards = shots.slice(-24).reverse().map(s =>\n  `<div class=card><img src='/snap/${s.file}'/><div class=meta>${s.label} \\u00d7${s.count} \\u2014 ${s.ts}</div></div>`\n).join('');\nmsg.payload = `<!doctype html><html><head><meta charset=utf-8>`+\n  `<meta http-equiv=refresh content=5><title>Sentinel \\u2014 camera</title>`+\n  `<style>body{background:#0d1117;color:#c9d1d9;font-family:system-ui;margin:0;padding:20px}`+\n  `h1{color:#3fb950;font-size:18px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}`+\n  `.card{background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}`+\n  `.card img{width:100%;display:block}.meta{padding:8px;font-size:13px;color:#8b949e}</style></head>`+\n  `<body><h1>\\ud83d\\udee1\\ufe0f sentinel-01 \\u2014 camera snapshots</h1><div class=grid>${cards}</div></body></html>`;\nmsg.headers = { 'Content-Type': 'text/html' };\nreturn msg;",
-    "outputs": 1,
-    "x": 360,
-    "y": 320,
-    "wires": [
-      [
-        "sn-http-resp"
-      ]
-    ]
-  },
-  {
-    "id": "sn-http-resp",
-    "type": "http response",
-    "z": "sentinel-tab",
-    "name": "",
-    "statusCode": "",
-    "headers": {},
-    "x": 590,
-    "y": 320,
-    "wires": []
-  },
-  {
-    "id": "sn-http-snap",
-    "type": "http in",
-    "z": "sentinel-tab",
-    "name": "GET /snap/:file",
-    "url": "/snap/:file",
-    "method": "get",
-    "upload": false,
-    "swaggerDoc": "",
-    "x": 140,
-    "y": 400,
-    "wires": [
-      [
-        "sn-snap-fn"
-      ]
-    ]
-  },
-  {
-    "id": "sn-snap-fn",
-    "type": "function",
-    "z": "sentinel-tab",
-    "name": "serve snapshot",
-    "outputs": 1,
-    "func": "const fs = global.get('fs');\nconst dir = env.get('SNAPSHOT_DIR') || 'C:/sentinel/snaps';\nconst file = (msg.req.params.file || '').replace(/[^0-9A-Za-z_.-]/g, '');\nif (!fs) {\n    msg.statusCode = 500;\n    msg.headers = { 'Content-Type': 'text/plain' };\n    msg.payload = \"fs not available: add functionGlobalContext: { fs: require('fs') } to settings.js\";\n    return msg;\n}\nif (!file) { msg.statusCode = 400; msg.payload = 'missing file'; return msg; }\nconst full = dir + '/' + file;\ntry {\n    const buf = fs.readFileSync(full);\n    msg.statusCode = 200;\n    msg.headers = { 'Content-Type': 'image/jpeg' };\n    msg.payload = buf;\n} catch (e) {\n    msg.statusCode = 404;\n    msg.headers = { 'Content-Type': 'text/plain' };\n    msg.payload = 'not found';\n}\nreturn msg;\n",
-    "x": 380,
-    "y": 400,
-    "wires": [
-      [
-        "sn-snap-resp2"
-      ]
-    ]
-  },
-  {
-    "id": "sn-snap-resp2",
-    "type": "http response",
-    "z": "sentinel-tab",
-    "name": "",
-    "statusCode": "",
-    "headers": {},
-    "x": 610,
-    "y": 400,
-    "wires": []
-  }
+ {
+  "id": "sentinel-tab",
+  "type": "tab",
+  "label": "Sentinel · MQTT → InfluxDB",
+  "info": "Requires palette: node-red-contrib-influxdb. Splits scalar readings and discrete events into two InfluxDB measurements."
+ },
+ {
+  "id": "sn-mqtt-in",
+  "type": "mqtt in",
+  "z": "sentinel-tab",
+  "name": "iot/+/state",
+  "topic": "iot/+/state",
+  "qos": "1",
+  "datatype": "json",
+  "broker": "sn-broker",
+  "x": 130,
+  "y": 160,
+  "wires": [
+   [
+    "sn-rate"
+   ]
+  ]
+ },
+ {
+  "id": "sn-split",
+  "type": "function",
+  "z": "sentinel-tab",
+  "name": "frame → readings + events",
+  "func": "const f = msg.payload;\nconst out_readings = null;\n\n// 1) scalar readings -> measurement 'telemetry'\nconst fields = {};\nfor (const [name, r] of Object.entries(f.readings || {})) {\n  fields[name] = r.v;\n}\nfields.seq = f.seq;\nconst readingsMsg = {\n  payload: [fields, { device_id: f.device_id }],\n  measurement: 'telemetry'\n};\n\n// 2) discrete events -> measurement 'events' (one point per event)\n// confidence as field; label + channel as tags; count/level as fields if present.\nconst eventMsgs = [];\nconst shots = flow.get('shots') || [];\nfor (const e of (f.events || [])) {\n  if (e.ch === 'vision' && e.label === 'person' && e.meta && e.meta.snapshot) {\n    shots.push({ file: e.meta.snapshot.split('/').pop(), count: e.meta.count||0,\n                 label: e.label, ts: new Date(f.ts*1000).toLocaleTimeString() });\n    if (shots.length > 200) shots.shift();\n    flow.set('shots', shots);\n  }\n  const efields = { confidence: e.conf };\n  if (e.meta && typeof e.meta.count === 'number') efields.count = e.meta.count;\n  if (e.meta && typeof e.meta.level_dbfs === 'number') efields.level_dbfs = e.meta.level_dbfs;\n  eventMsgs.push({\n    payload: [efields, { device_id: f.device_id, channel: e.ch, label: e.label }],\n    measurement: 'events'\n  });\n}\n\nreturn [readingsMsg, eventMsgs];",
+  "outputs": 2,
+  "x": 380,
+  "y": 160,
+  "wires": [
+   [
+    "sn-influx-readings"
+   ],
+   [
+    "sn-influx-events"
+   ]
+  ]
+ },
+ {
+  "id": "sn-influx-readings",
+  "type": "influxdb out",
+  "z": "sentinel-tab",
+  "influxdb": "sn-influxdb",
+  "name": "readings",
+  "measurement": "telemetry",
+  "precision": "",
+  "retentionPolicy": "",
+  "org": "sentinel",
+  "bucket": "sentinel",
+  "x": 660,
+  "y": 120,
+  "wires": []
+ },
+ {
+  "id": "sn-influx-events",
+  "type": "influxdb out",
+  "z": "sentinel-tab",
+  "influxdb": "sn-influxdb",
+  "name": "events",
+  "measurement": "events",
+  "precision": "",
+  "retentionPolicy": "",
+  "org": "sentinel",
+  "bucket": "sentinel",
+  "x": 656,
+  "y": 200,
+  "wires": []
+ },
+ {
+  "id": "sn-broker",
+  "type": "mqtt-broker",
+  "name": "mosquitto",
+  "broker": "localhost",
+  "port": "1883",
+  "clientid": "nodered-sentinel",
+  "autoConnect": true,
+  "protocolVersion": "5",
+  "keepalive": "60",
+  "cleansession": true
+ },
+ {
+  "id": "sn-influxdb",
+  "type": "influxdb",
+  "hostname": "localhost",
+  "port": "8086",
+  "protocol": "http",
+  "name": "influxdb2",
+  "usetls": false,
+  "influxdbVersion": "2.0",
+  "url": "http://localhost:8086",
+  "rejectUnauthorized": false
+ },
+ {
+  "id": "sn-http-gallery",
+  "type": "http in",
+  "z": "sentinel-tab",
+  "name": "GET /gallery",
+  "url": "/gallery",
+  "method": "get",
+  "upload": false,
+  "swaggerDoc": "",
+  "x": 130,
+  "y": 320,
+  "wires": [
+   [
+    "sn-gallery-fn"
+   ]
+  ]
+ },
+ {
+  "id": "sn-gallery-fn",
+  "type": "function",
+  "z": "sentinel-tab",
+  "name": "render gallery",
+  "func": "// Reads recent vision events from flow context (populated by the split fn)\nconst shots = flow.get('shots') || [];\nconst cards = shots.slice(-24).reverse().map(s =>\n  `<div class=card><img src='/snap/${s.file}'/><div class=meta>${s.label} \\u00d7${s.count} \\u2014 ${s.ts}</div></div>`\n).join('');\nmsg.payload = `<!doctype html><html><head><meta charset=utf-8>`+\n  `<meta http-equiv=refresh content=5><title>Sentinel \\u2014 camera</title>`+\n  `<style>body{background:#0d1117;color:#c9d1d9;font-family:system-ui;margin:0;padding:20px}`+\n  `h1{color:#3fb950;font-size:18px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}`+\n  `.card{background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}`+\n  `.card img{width:100%;display:block}.meta{padding:8px;font-size:13px;color:#8b949e}</style></head>`+\n  `<body><h1>\\ud83d\\udee1\\ufe0f sentinel-01 \\u2014 camera snapshots</h1><div class=grid>${cards}</div></body></html>`;\nmsg.headers = { 'Content-Type': 'text/html' };\nreturn msg;",
+  "outputs": 1,
+  "x": 360,
+  "y": 320,
+  "wires": [
+   [
+    "sn-http-resp"
+   ]
+  ]
+ },
+ {
+  "id": "sn-http-resp",
+  "type": "http response",
+  "z": "sentinel-tab",
+  "name": "",
+  "statusCode": "",
+  "headers": {},
+  "x": 590,
+  "y": 320,
+  "wires": []
+ },
+ {
+  "id": "sn-http-snap",
+  "type": "http in",
+  "z": "sentinel-tab",
+  "name": "GET /snap/:file",
+  "url": "/snap/:file",
+  "method": "get",
+  "upload": false,
+  "swaggerDoc": "",
+  "x": 140,
+  "y": 400,
+  "wires": [
+   [
+    "sn-snap-fn"
+   ]
+  ]
+ },
+ {
+  "id": "sn-snap-fn",
+  "type": "function",
+  "z": "sentinel-tab",
+  "name": "serve snapshot",
+  "outputs": 1,
+  "func": "const fs = global.get('fs');\nconst dir = env.get('SNAPSHOT_DIR') || 'C:/sentinel/snaps';\nconst file = (msg.req.params.file || '').replace(/[^0-9A-Za-z_.-]/g, '');\nif (!fs) {\n    msg.statusCode = 500;\n    msg.headers = { 'Content-Type': 'text/plain' };\n    msg.payload = \"fs not available: add functionGlobalContext: { fs: require('fs') } to settings.js\";\n    return msg;\n}\nif (!file) { msg.statusCode = 400; msg.payload = 'missing file'; return msg; }\nconst full = dir + '/' + file;\ntry {\n    const buf = fs.readFileSync(full);\n    msg.statusCode = 200;\n    msg.headers = { 'Content-Type': 'image/jpeg' };\n    msg.payload = buf;\n} catch (e) {\n    msg.statusCode = 404;\n    msg.headers = { 'Content-Type': 'text/plain' };\n    msg.payload = 'not found';\n}\nreturn msg;\n",
+  "x": 380,
+  "y": 400,
+  "wires": [
+   [
+    "sn-snap-resp2"
+   ]
+  ]
+ },
+ {
+  "id": "sn-snap-resp2",
+  "type": "http response",
+  "z": "sentinel-tab",
+  "name": "",
+  "statusCode": "",
+  "headers": {},
+  "x": 610,
+  "y": 400,
+  "wires": []
+ },
+ {
+  "id": "sn-rate",
+  "type": "function",
+  "z": "sentinel-tab",
+  "name": "rate anomaly",
+  "func": "// Rate-anomaly: flag a node emitting far above its normal cadence.\nconst WINDOW_MS = 60000;   // 1-min sliding window\nconst MAX = 30;            // frames/min before it's suspicious\nlet id = 'unknown';\nif (msg.payload && msg.payload.device_id) { id = msg.payload.device_id; }\nelse if (typeof msg.topic === 'string') { const p = msg.topic.split('/'); if (p.length >= 2) id = p[1]; }\nconst now = Date.now();\nlet hits = flow.get('rate:' + id) || [];\nhits = hits.filter(t => now - t < WINDOW_MS);\nhits.push(now);\nflow.set('rate:' + id, hits);\nif (hits.length > MAX) {\n    node.warn('rate_anomaly: ' + id + ' -> ' + hits.length + '/min');\n    const alert = { payload: [ { count: 1, severity_level: 1 },\n                                { device_id: id, kind: 'rate_anomaly', severity: 'warning' } ] };\n    return [msg, alert];   // forward telemetry AND raise alert\n}\nreturn [msg, null];\n",
+  "outputs": 2,
+  "noerr": 0,
+  "initialize": "",
+  "finalize": "",
+  "libs": [],
+  "x": 250,
+  "y": 240,
+  "wires": [
+   [
+    "sn-split"
+   ],
+   [
+    "sn-influx-alerts"
+   ]
+  ]
+ },
+ {
+  "id": "sn-influx-alerts",
+  "type": "influxdb out",
+  "z": "sentinel-tab",
+  "influxdb": "sn-influxdb",
+  "name": "alerts",
+  "measurement": "alerts",
+  "precision": "",
+  "retentionPolicy": "",
+  "org": "sentinel",
+  "bucket": "sentinel",
+  "x": 660,
+  "y": 260,
+  "wires": []
+ }
 ]

@@ -7,7 +7,7 @@
       "pluginId": "influxdb"
     }
   ],
-  "title": "\ud83d\udee1 Sentinel Node",
+  "title": "🛡 Sentinel Node",
   "uid": "sentinel-v1",
   "tags": [
     "iot",
@@ -24,13 +24,43 @@
     "to": "now"
   },
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "node",
+        "label": "Node",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "${DS_INFLUXDB}"
+        },
+        "definition": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"sentinel\", tag: \"device_id\")",
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"sentinel\", tag: \"device_id\")",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "regex": "",
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
   },
   "panels": [
     {
       "type": "gauge",
       "id": 1,
-      "title": "\ud83c\udf21 Temp",
+      "title": "🌡 Temp",
       "gridPos": {
         "h": 5,
         "w": 4,
@@ -95,7 +125,7 @@
     {
       "type": "gauge",
       "id": 2,
-      "title": "\ud83e\udee7 IAQ",
+      "title": "🫧 IAQ",
       "gridPos": {
         "h": 5,
         "w": 4,
@@ -164,7 +194,7 @@
     {
       "type": "stat",
       "id": 3,
-      "title": "\ud83d\udeb6 Presence",
+      "title": "🚶 Presence",
       "gridPos": {
         "h": 5,
         "w": 4,
@@ -238,7 +268,7 @@
     {
       "type": "stat",
       "id": 4,
-      "title": "\ud83d\udc65 People (vision)",
+      "title": "👥 People (vision)",
       "gridPos": {
         "h": 5,
         "w": 4,
@@ -298,7 +328,7 @@
     {
       "type": "gauge",
       "id": 5,
-      "title": "\ud83d\udd0b Power",
+      "title": "🔋 Power",
       "gridPos": {
         "h": 5,
         "w": 4,
@@ -363,7 +393,7 @@
     {
       "type": "gauge",
       "id": 6,
-      "title": "\ud83d\udca7 Humidity",
+      "title": "💧 Humidity",
       "gridPos": {
         "h": 5,
         "w": 4,
@@ -522,12 +552,12 @@
           }
         }
       ],
-      "description": "Radar presence (bars) and distance to nearest target \u2014 the occupancy signal."
+      "description": "Radar presence (bars) and distance to nearest target — the occupancy signal."
     },
     {
       "type": "timeseries",
       "id": 11,
-      "title": "\ud83e\udee7 Air \u2014 IAQ & gas resistance",
+      "title": "🫧 Air — IAQ & gas resistance",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -622,7 +652,7 @@
     {
       "type": "timeseries",
       "id": 12,
-      "title": "\ud83c\udf21 Temperature & humidity",
+      "title": "🌡 Temperature & humidity",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -706,7 +736,7 @@
     {
       "type": "timeseries",
       "id": 13,
-      "title": "\ud83d\udd0a Audio events \u2014 confidence",
+      "title": "🔊 Audio events — confidence",
       "gridPos": {
         "h": 7,
         "w": 24,
@@ -759,6 +789,135 @@
         }
       ],
       "description": "Each point is an acoustic classification; color/height = confidence. Anomalies (glass_break) spike near the top."
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "🌡 Node health — seconds since last telemetry",
+      "description": "Green=fresh · yellow>90s · red>180s. Filtered by $node.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 0,
+        "y": 28
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 90
+              },
+              {
+                "color": "red",
+                "value": 180
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB}"
+          },
+          "query": "from(bucket: \"sentinel\")\n  |> range(start: -6h)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r.device_id =~ /${node:regex}/)\n  |> group(columns: [\"device_id\"])\n  |> max(column: \"_time\")\n  |> map(fn: (r) => ({ device_id: r.device_id, _value: (float(v: uint(v: now())) - float(v: uint(v: r._time))) / 1000000000.0 }))\n  |> group()\n  |> keep(columns: [\"device_id\", \"_value\"])"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "🚨 Rate anomalies",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS_INFLUXDB}"
+      },
+      "description": "Nodes emitting far above their normal frame rate.",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 28
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB}"
+          },
+          "query": "from(bucket: \"sentinel\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"alerts\" and r.kind == \"rate_anomaly\")\n  |> filter(fn: (r) => r._field == \"count\")\n  |> sum()\n  |> yield(name: \"rate\")"
+        }
+      ]
     }
   ]
 }
