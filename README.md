@@ -1,12 +1,5 @@
 # 🛡️ sentinel-node
 
-![status](https://img.shields.io/badge/status-WIP-f59e0b?style=flat-square&labelColor=0d1117)
-![python](https://img.shields.io/badge/python-3.10%2B-3b82f6?style=flat-square&labelColor=0d1117)
-![arch](https://img.shields.io/badge/architecture-hexagonal-8b5cf6?style=flat-square&labelColor=0d1117)
-![target](https://img.shields.io/badge/target-ESP32%20%2F%20ESP32--S3-10b981?style=flat-square&labelColor=0d1117)
-![tests](https://img.shields.io/badge/tests-45%20passing-22c55e?style=flat-square&labelColor=0d1117)
-![license](https://img.shields.io/badge/license-MIT-64748b?style=flat-square&labelColor=0d1117)
-
 **Multi-sensor edge sentinel** for a monitored space — air quality (BME680),
 mmWave human presence (LD2410), and **on-device ML** for acoustic events
 (INMP441 + TinyML) and vision (ESP32-CAM). One hexagonal core, one pipeline:
