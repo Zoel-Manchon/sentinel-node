@@ -24,6 +24,24 @@ mmWave human presence (LD2410), and **on-device ML** for acoustic events
 > adapters change — the domain and use cases ship to the ESP32 **verbatim**,
 > sensor by sensor. The ones you don't have yet stay simulated.
 
+## At a glance
+
+|  |  |
+| --- | --- |
+| **What it is** | A multi-sensor edge sentinel for a monitored space: air quality (BME680), mmWave human presence (LD2410), on-device ML for acoustic events (INMP441 + TinyML) and vision (ESP32-CAM). One hexagonal core, one pipeline. |
+| **The one idea** | **Raw media never enters the pipeline.** The audio node runs the classifier on-device and publishes only the verdict; the camera writes the JPEG out-of-band and puts a *path* in the event. A time-series database is not a blob store, and a microphone that ships audio is a different product with different consent. |
+| **Two kinds of observation** | A `Measurement` is a scalar reading and goes to InfluxDB's `telemetry`. An `Event` is a discrete classification from an edge model and goes to `events`, with label and channel as tags. Separating the data plane from the event plane is the point. |
+| **Sim-first** | The whole pipeline runs today against a **coherent simulated space**: one occupancy schedule drives everything at once, so the radar sees people, CO₂ rises with the crowd, the room warms and sound events grow likelier — together, because they share a cause. |
+| **Built with** | Python 3.10+ (CPython to simulate, MicroPython on target) · paho-mqtt · Mosquitto · Node-RED · InfluxDB 2 · Grafana |
+| **Size** | **55 tests** |
+
+**Contents** — [Readings vs events](#the-core-idea-readings-vs-events) ·
+[Architecture](#architecture) · [Layout](#layout) · [Quick start](#quick-start) ·
+[Camera snapshots](#camera-snapshots) · [Screenshots](#screenshots) ·
+[Status](#status)
+
+---
+
 ## The core idea: readings vs events
 
 Not every observation is a scalar. This node models **two kinds**:
@@ -113,7 +131,7 @@ node/
     └── transport/   console · mqtt
 runner/run_sim.py    composition root (toggle each sensor, scripted anomalies)
 deploy/              docker stack + Node-RED flow (readings/events split) + dashboard
-tests/               45 tests, incl. architecture fitness functions
+tests/               55 tests, incl. architecture fitness functions
 ```
 
 ## Quick start
@@ -121,7 +139,7 @@ tests/               45 tests, incl. architecture fitness functions
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev,mqtt]"
-pytest                                              # 45 passed
+pytest                                              # 55 passed
 
 python -m runner.run_sim --cycles 5 --speed 10000   # console, no infra
 ```
@@ -200,7 +218,12 @@ Full steps in [docs/SETUP.md](docs/SETUP.md#step-7--camera-snapshots--gallery-op
 |:---:|:---:|
 | ![node-red](docs/screenshots/node-red.png) | ![influxdb](docs/screenshots/influxdb.png) |
 
-## Hardware phase (checklist)
+## Status
+
+The simulation phase is complete and runs end to end: 55 tests green and the full
+MQTT → Node-RED → InfluxDB → Grafana pipeline provisioned.
+
+### Hardware phase (checklist)
 
 The sim→hardware swap is per-sensor and mechanical — the core never changes:
 
@@ -228,12 +251,12 @@ Node B — edge ML (ESP32-S3, PSRAM):
 Pinout, drivers and the media-handling rationale in
 [`WIRING.md`](node/adapters/hw/WIRING.md).
 
-## Roadmap
+### Beyond the sim
 
-Beyond the sim: **real sensors**, **TLS/mTLS everywhere**, and **defense in
-depth** (signed frames, secrets management, audit trail, a CI check that
-enforces "no raw media in events"). Full plan in
-**[docs/ROADMAP.md](docs/ROADMAP.md)**.
+Real sensors, TLS/mTLS everywhere, and defence in depth: signed frames, secrets
+management, an audit trail, and a CI check that **enforces** the no-raw-media rule
+rather than trusting it to stay true. Full plan in
+[docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Stack
 
