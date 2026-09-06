@@ -1,5 +1,13 @@
 # 🛡️ sentinel-node
 
+[![CI](https://github.com/Zoel-Manchon/sentinel-node/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Zoel-Manchon/sentinel-node/actions/workflows/ci.yml)
+![ESP32-S3](https://img.shields.io/badge/ESP32--S3-E7352C?style=flat-square&logo=espressif&logoColor=white)
+![TinyML on-device](https://img.shields.io/badge/TinyML-on--device-6E7681?style=flat-square)
+![MQTT](https://img.shields.io/badge/MQTT-660066?style=flat-square&logo=eclipsemosquitto&logoColor=white)
+![InfluxDB](https://img.shields.io/badge/InfluxDB-22ADF6?style=flat-square&logo=influxdb&logoColor=white)
+![architecture hexagonal](https://img.shields.io/badge/architecture-hexagonal-1F2A37?style=flat-square)
+![license MIT](https://img.shields.io/badge/license-MIT-2A3340?style=flat-square)
+
 **Multi-sensor edge sentinel** for a monitored space — air quality (BME680),
 mmWave human presence (LD2410), and **on-device ML** for acoustic events
 (INMP441 + TinyML) and vision (ESP32-CAM). One hexagonal core, one pipeline:
